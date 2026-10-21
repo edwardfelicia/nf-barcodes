@@ -127,6 +127,16 @@ td.thumb canvas:hover{transform:scale(1.03);box-shadow:0 0 0 2px var(--brass-dim
 .foot-in{padding-top:14px;padding-bottom:30px;color:var(--muted);font-size:12.5px}
 .foot details{margin-top:8px;background:none;border:none;padding:0}
 .foot ul{margin:8px 0 0;padding-left:18px;line-height:1.6}
+.pdfview{position:fixed;inset:0;background:rgba(8,10,13,.88);display:none;z-index:60;padding:18px}
+.pdfview.open{display:flex;align-items:center;justify-content:center}
+.pdfview-box{width:min(1000px,96vw);height:94vh;display:flex;flex-direction:column;background:var(--iron2);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+.pdfview-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--edge)}
+.pdfview-bar span{flex:1;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdfview-bar small{display:block;color:var(--muted);font-size:11.5px}
+#pdfview-pages{flex:1;overflow:auto;background:#3b3f45;padding:18px;display:flex;flex-direction:column;align-items:center;gap:18px}
+#pdfview-pages figure{margin:0;text-align:center}
+#pdfview-pages canvas{background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.45);width:min(816px,100%);height:auto;display:block}
+#pdfview-pages figcaption{color:#c9cdd3;font-size:12px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -162,6 +172,8 @@ td.thumb canvas:hover{transform:scale(1.03);box-shadow:0 0 0 2px var(--brass-dim
         <label class="vtoggle"><input type="checkbox" class="upc-validate" checked> <b>UPC validity check</b> <span class="vtoggle-note">On. Only valid UPC-A codes print.</span></label>
         <div class="btnrow">
           <button class="btn" id="s-download">Download PNG</button>
+          <button class="btn ghost" id="s-preview">Preview sheet</button>
+          <button class="btn ghost" id="s-pdf">Sheet PDF</button>
         </div>
         <p class="hint">Enter 11 digits and the check digit is added for you. Enter 12 and it is verified.</p>
       </div>
@@ -185,6 +197,10 @@ Tungsten - Single D20 True Metal Dice	NOR 02633	645318803907</textarea>
         <div class="btnrow">
           <button class="btn ghost" id="b-parse">Preview list</button>
           <button class="btn" id="b-zip" disabled>Download all (ZIP)</button>
+        </div>
+        <div class="btnrow">
+          <button class="btn ghost" id="b-preview" disabled>Preview sheet</button>
+          <button class="btn ghost" id="b-pdf" disabled>Sheet PDF</button>
         </div>
         <p class="hint">Columns can be in any order. Tab or comma separated. The SKU is read from the <code>NOR</code> value, the UPC from the 11 to 12 digit number, and the name from the rest. Two SKU-like values means the last one is used.</p>
       </div>
@@ -218,6 +234,7 @@ Tungsten - Single D20 True Metal Dice	NOR 02633	645318803907</textarea>
         <label class="vtoggle"><input type="checkbox" class="upc-validate" checked> <b>UPC validity check</b> <span class="vtoggle-note">On. Only valid UPC-A codes print.</span></label>
         <div class="btnrow">
           <button class="btn" id="c-pdf">Download sheet PDF</button>
+          <button class="btn ghost" id="c-preview">Preview sheet</button>
           <button class="btn ghost" id="c-png">Single PNG</button>
         </div>
         <p class="hint">The PDF is a print-ready sheet of identical labels. Packaging fills in from the packaging reference based on the product name. Change it if the guess is wrong. Cases per carton <code>0</code> means the product ships carton-only.</p>
@@ -243,6 +260,7 @@ Owlbear - Hard Enamel Pin - Blue	NOR 03649	645318793567</textarea>
         <div class="btnrow">
           <button class="btn ghost" id="cb-parse">Preview list</button>
           <button class="btn" id="cb-pdf" disabled>Download all (one PDF)</button>
+          <button class="btn ghost" id="cb-preview" disabled>Preview sheet</button>
         </div>
         <p class="hint">Paste rows straight from the Barcode Masterlist (whole rows are fine), or name, SKU, UPC in any order. Include the <code>Source Tab</code> column so packaging is picked by product line. Items without confirmed packaging show <em>awaiting packaging</em> until you type the quantities. Each ticked label gets a full sheet, or the copies set under Sheet layout.</p>
       </div>
@@ -252,6 +270,33 @@ Owlbear - Hard Enamel Pin - Blue	NOR 03649	645318793567</textarea>
       </div>
     </div>
 
+  </div>
+
+  <!-- shared by both product tabs -->
+  <div id="product-shared">
+    <details>
+      <summary>Sheet layout (default Avery 5160 / 8160: 2.625 x 1 in, 30 per Letter sheet)</summary>
+      <div class="row4">
+        <div><label for="ps-lw">Label W (in)</label><input id="ps-lw" type="number" step="0.01" value="2.625"></div>
+        <div><label for="ps-lh">Label H (in)</label><input id="ps-lh" type="number" step="0.01" value="1"></div>
+        <div><label for="ps-cols">Columns</label><input id="ps-cols" type="number" value="3"></div>
+        <div><label for="ps-rows">Rows</label><input id="ps-rows" type="number" value="10"></div>
+        <div><label for="ps-mt">Top margin</label><input id="ps-mt" type="number" step="0.01" value="0.5"></div>
+        <div><label for="ps-ml">Left margin</label><input id="ps-ml" type="number" step="0.01" value="0.1875"></div>
+        <div><label for="ps-gx">Column gap</label><input id="ps-gx" type="number" step="0.01" value="0.125"></div>
+        <div><label for="ps-gy">Row gap</label><input id="ps-gy" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="row2" style="margin-top:12px">
+        <div><label for="ps-outline">Print cut outlines</label><select id="ps-outline"><option value="0">No (label sheets)</option><option value="1">Yes (plain paper test)</option></select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="ps-reset" type="button">Reset to Avery 5160</button></div>
+      </div>
+      <div class="row2" style="margin-top:12px">
+        <div><label for="pp-copies">Copies of each label</label><input id="pp-copies" type="number" min="1" placeholder="Full sheet"></div>
+        <div><label for="pp-start">Start at label #</label><input id="pp-start" type="number" min="1" value="1"></div>
+      </div>
+      <p class="hint">Labels are numbered left to right, top to bottom. Leave copies blank for a full sheet of each label. With copies set, labels in a batch follow each other on the same sheet.</p>
+      <div class="status" id="ps-status"></div>
+    </details>
   </div>
 
   <!-- shared by both case & carton tabs -->
@@ -292,6 +337,10 @@ Owlbear - Hard Enamel Pin - Blue	NOR 03649	645318793567</textarea>
   </div>
 </div>
 
+<div class="pdfview" id="pdfview"><div class="pdfview-box">
+  <div class="pdfview-bar"><span id="pdfview-name"></span><button class="btn" id="pdfview-dl" type="button">Download PDF</button><button class="btn ghost" id="pdfview-close" type="button">Close</button></div>
+  <div id="pdfview-pages"></div>
+</div></div>
 <div class="zoom" id="zoom"><figure><img id="zoom-img" alt=""><figcaption id="zoom-cap"></figcaption></figure></div>
 
 <script>
@@ -385,7 +434,7 @@ function canvasToBlob(canvas){return new Promise(res=>canvas.toBlob(res,'image/p
 function downloadBlob(blob,filename){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
 
 // ---- tabs ----
-function syncShared(){const t=document.querySelector('.tab.active').dataset.tab;document.getElementById('carton-shared').style.display=(t==='carton'||t==='cartonbatch')?'':'none';}
+function syncShared(){const t=document.querySelector('.tab.active').dataset.tab;document.getElementById('carton-shared').style.display=(t==='carton'||t==='cartonbatch')?'':'none';document.getElementById('product-shared').style.display=(t==='single'||t==='batch')?'':'none';}
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>setTimeout(syncShared,0)));
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -401,11 +450,19 @@ function updateSingle(){
   const nu=normalizeUPC(sUpc.value);
   if(nu.valid){sStatus.className='status '+(nu.forced?'warn':'ok');sStatus.textContent=nu.note;
     renderLabel(sCanvas,sSku.value.trim()||' ',nu.code,sName.value.trim()||' ');
-    sCurrent={name:sName.value.trim(),sku:sSku.value.trim(),code:nu.code};sBtn.disabled=false;
-  }else{sStatus.className='status bad';sStatus.textContent=nu.note;sBtn.disabled=true;sCurrent=null;
+    sCurrent={name:sName.value.trim(),sku:sSku.value.trim(),code:nu.code};sBtn.disabled=false;setProductPdfBtns(false);
+  }else{sStatus.className='status bad';sStatus.textContent=nu.note;sBtn.disabled=true;setProductPdfBtns(true);sCurrent=null;
     const ctx=sCanvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);}
 }
 [sName,sSku,sUpc].forEach(el=>el.addEventListener('input',updateSingle));
+function setProductPdfBtns(off){['s-preview','s-pdf'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=off;});}
+function productFile(name,sku){return 'Product sheet - '+sanitize(name)+' - '+sanitize(sku)+'.pdf';}
+function productSinglePDF(preview){
+  if(!sCurrent)return;const t=trimCanvas(sCanvas);
+  outPDF(buildSheetPDF([{...t,alias:'prod'}],'ps',0.04),productFile(sCurrent.name,sCurrent.sku),preview);
+}
+document.getElementById('s-pdf').addEventListener('click',()=>productSinglePDF(false));
+document.getElementById('s-preview').addEventListener('click',()=>productSinglePDF(true));
 sBtn.addEventListener('click',async()=>{if(!sCurrent)return;const blob=await canvasToBlob(sCanvas);downloadBlob(blob,sanitize(sCurrent.name)+' - '+sanitize(sCurrent.sku)+'.png');});
 
 
@@ -466,8 +523,15 @@ function renderBatch(){
     const r=bRows[+btn.dataset.i];const c=document.getElementById('bc-'+btn.dataset.i);
     const blob=await canvasToBlob(c);downloadBlob(blob,sanitize(r.name)+' - '+sanitize(r.sku)+'.png');
   }));
-  bZip.disabled=okN===0;
+  bZip.disabled=okN===0;document.getElementById('b-pdf').disabled=document.getElementById('b-preview').disabled=okN===0;
 }
+function productBatchPDF(preview){
+  const valid=bRows.filter(r=>r.valid);if(!valid.length)return;
+  const cv=document.createElement('canvas'),pages=valid.map((r,i)=>{renderLabel(cv,r.sku||' ',r.code,r.name||' ');return {...trimCanvas(cv),alias:'pb'+i};});
+  outPDF(buildSheetPDF(pages,'ps',0.04),'norse_foundry_product_labels.pdf',preview);
+}
+document.getElementById('b-pdf').addEventListener('click',()=>productBatchPDF(false));
+document.getElementById('b-preview').addEventListener('click',()=>productBatchPDF(true));
 bZip.addEventListener('click',async()=>{
   const valid=bRows.filter(r=>r.valid);if(!valid.length)return;
   if(typeof JSZip==='undefined'){alert('ZIP library did not load (offline?). Use the per-row PNG buttons instead.');return;}
@@ -561,37 +625,86 @@ function renderCarton(canvas,o){
   }
 }
 
-function sheetCfg(){const v=id=>parseFloat(document.getElementById(id).value)||0;
-  return {lw:v('sh-lw'),lh:v('sh-lh'),cols:Math.max(1,Math.round(v('sh-cols'))),rows:Math.max(1,Math.round(v('sh-rows'))),
-    mt:v('sh-mt'),ml:v('sh-ml'),gx:v('sh-gx'),gy:v('sh-gy'),outline:document.getElementById('sh-outline').value==='1'};}
+// p = settings prefix: 'sh' for case & carton sheets, 'ps' for product sheets
+function sheetCfg(p='sh'){const v=id=>parseFloat(document.getElementById(p+'-'+id).value)||0;
+  return {lw:v('lw'),lh:v('lh'),cols:Math.max(1,Math.round(v('cols'))),rows:Math.max(1,Math.round(v('rows'))),
+    mt:v('mt'),ml:v('ml'),gx:v('gx'),gy:v('gy'),outline:document.getElementById(p+'-outline').value==='1'};}
 function showDigits(){return document.getElementById('sh-digits').value==='1';}
 function companyName(){return document.getElementById('sh-company').value.trim();}
-function printCfg(per){
-  const cp=parseInt(document.getElementById('pr-copies').value,10),st=parseInt(document.getElementById('pr-start').value,10);
+function printCfg(per,p='sh'){
+  const q=p==='ps'?'pp':'pr';
+  const cp=parseInt(document.getElementById(q+'-copies').value,10),st=parseInt(document.getElementById(q+'-start').value,10);
   return {copies:cp>0?cp:0,start:Math.min(Math.max(st>0?st:1,1),per)};
 }
-function buildSheetPDF(pages){
-  if(!window.jspdf){alert('PDF library did not load (offline?). Use Single PNG instead.');return null;}
-  if(!checkSheet()&&!confirm('Sheet layout does not fit a Letter page. Download anyway?'))return null;
-  const doc=new window.jspdf.jsPDF({unit:'in',format:'letter'});const c=sheetCfg();
-  const k=Math.min(c.lw/CW,c.lh/CH),w=CW*k,h=CH*k;
-  const per=c.cols*c.rows,pr=printCfg(per);
-  // full-sheet mode keeps one label per page; copies mode packs labels one after another
+// pages: [{data, alias, w, h}] where w/h are the image's pixel size (defaults to the carton canvas)
+// one placement list drives both the PDF and the on-screen preview
+function layoutSheet(pages,p='sh',pad=0){
+  const c=sheetCfg(p),per=c.cols*c.rows,pr=printCfg(per,p),out=[[]];
   let slot=pr.start-1;
   pages.forEach((pg,pi)=>{
-    if(!pr.copies&&pi){doc.addPage();slot=0;}
+    if(!pr.copies&&pi){out.push([]);slot=0;}
     const n=pr.copies||per-slot;
     for(let k=0;k<n;k++){
-      if(slot>=per){doc.addPage();slot=0;}
+      if(slot>=per){out.push([]);slot=0;}
       const r=Math.floor(slot/c.cols),col=slot%c.cols;
       const x=c.ml+col*(c.lw+c.gx),y=c.mt+r*(c.lh+c.gy);
-      doc.addImage(pg.data,'PNG',x+(c.lw-w)/2,y+(c.lh-h)/2,w,h,pg.alias,'FAST');
-      if(c.outline){doc.setDrawColor(190);doc.setLineWidth(0.005);doc.roundedRect(x,y,c.lw,c.lh,0.1,0.1);}
+      const iw=pg.w||CW,ih=pg.h||CH,bw=c.lw-2*pad,bh=c.lh-2*pad,kk=Math.min(bw/iw,bh/ih),w=iw*kk,h=ih*kk;
+      out[out.length-1].push({pg,x:x+(c.lw-w)/2,y:y+(c.lh-h)/2,w,h,cell:{x,y,w:c.lw,h:c.lh}});
       slot++;
     }
   });
+  return {cfg:c,sheets:out};
+}
+function buildSheetPDF(pages,p='sh',pad=0){
+  if(!window.jspdf){alert('PDF library did not load (offline?). Use the PNG download instead.');return null;}
+  if(!checkSheet(p)&&!confirm('Sheet layout does not fit a Letter page. Continue anyway?'))return null;
+  const L=layoutSheet(pages,p,pad),doc=new window.jspdf.jsPDF({unit:'in',format:'letter'});
+  L.sheets.forEach((items,si)=>{
+    if(si)doc.addPage();
+    items.forEach(it=>{
+      doc.addImage(it.pg.data,'PNG',it.x,it.y,it.w,it.h,it.pg.alias,'FAST');
+      if(L.cfg.outline){doc.setDrawColor(190);doc.setLineWidth(0.005);doc.roundedRect(it.cell.x,it.cell.y,it.cell.w,it.cell.h,0.1,0.1);}
+    });
+  });
+  doc._nfLayout=L;
   return doc;
 }
+// crop white margins so a product label fills a small sticker
+function trimCanvas(cv,padPx=10){
+  const ctx=cv.getContext('2d'),{width:W0,height:H0}=cv,d=ctx.getImageData(0,0,W0,H0).data;
+  let x0=W0,y0=H0,x1=-1,y1=-1;
+  for(let y=0;y<H0;y++)for(let x=0;x<W0;x++){const i=(y*W0+x)*4;if(d[i]<200||d[i+1]<200||d[i+2]<200){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+  if(x1<0)return {data:cv.toDataURL('image/png'),w:W0,h:H0};
+  x0=Math.max(0,x0-padPx);y0=Math.max(0,y0-padPx);x1=Math.min(W0-1,x1+padPx);y1=Math.min(H0-1,y1+padPx);
+  const out=document.createElement('canvas');out.width=x1-x0+1;out.height=y1-y0+1;
+  const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,out.width,out.height);o.drawImage(cv,x0,y0,out.width,out.height,0,0,out.width,out.height);
+  return {data:out.toDataURL('image/png'),w:out.width,h:out.height};
+}
+// ---- PDF preview (view in the page, download from there if it looks right) ----
+let pdfDoc=null,pdfName='';
+function loadImg(src){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src;});}
+async function showPDF(doc,name){
+  if(!doc)return;pdfDoc=doc;pdfName=name;
+  const L=doc._nfLayout,box=document.getElementById('pdfview-pages'),DPI=150;
+  const n=L.sheets.length,cells=L.sheets.reduce((a,x)=>a+x.length,0);
+  document.getElementById('pdfview-name').innerHTML=escapeHtml(name)+'<small>'+n+' page'+(n===1?'':'s')+', '+cells+' label'+(cells===1?'':'s')+'. Exact layout of the PDF on a Letter page. Dashed lines show label edges and are not printed.</small>';
+  box.innerHTML='';document.getElementById('pdfview').classList.add('open');
+  const cache={};
+  for(let si=0;si<n;si++){
+    const cv=document.createElement('canvas');cv.width=8.5*DPI;cv.height=11*DPI;
+    const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+    for(const it of L.sheets[si]){
+      const img=cache[it.pg.alias]||(cache[it.pg.alias]=await loadImg(it.pg.data));
+      if(img)ctx.drawImage(img,it.x*DPI,it.y*DPI,it.w*DPI,it.h*DPI);
+      ctx.save();ctx.strokeStyle=L.cfg.outline?'#bdbdbd':'#9fb6d6';ctx.lineWidth=1;if(!L.cfg.outline)ctx.setLineDash([6,5]);
+      ctx.strokeRect(it.cell.x*DPI+.5,it.cell.y*DPI+.5,it.cell.w*DPI-1,it.cell.h*DPI-1);ctx.restore();
+    }
+    const fig=document.createElement('figure');fig.appendChild(cv);
+    const cap=document.createElement('figcaption');cap.textContent='Page '+(si+1)+' of '+n;fig.appendChild(cap);box.appendChild(fig);
+  }
+}
+function closePDF(){document.getElementById('pdfview').classList.remove('open');document.getElementById('pdfview-pages').innerHTML='';}
+function outPDF(doc,name,preview){if(!doc)return;if(preview)showPDF(doc,name);else doc.save(name);}
 function labelFile(type,name,sku){return (type==='case'?'Case':'Carton')+' - '+sanitize(name)+' - '+sanitize(sku);}
 
 // single
@@ -612,14 +725,14 @@ function updateCarton(){
   let err=null;
   if(!nu.valid)err='UPC: '+nu.note;else if(!units)err=cPack.value==='pending'?'Packaging not confirmed yet. Type quantities once confirmed.':'Enter units per case';else if(!cName.value.trim())err='Enter a product name';
   const ctx=cCanvas.getContext('2d');
-  if(err){cStatus.className='status bad';cStatus.textContent=err;cCur=null;cPdf.disabled=cPng.disabled=true;
+  if(err){cStatus.className='status bad';cStatus.textContent=err;cCur=null;cPdf.disabled=cPng.disabled=cEl('c-preview').disabled=true;
     ctx.fillStyle='#fff';ctx.fillRect(0,0,CW,CH);return;}
   cCur={digits:showDigits(),company:companyName(),collection:cCol.value.trim(),name:cName.value.trim(),sku:cSku.value.trim()||' ',
         code:nu.code,pack:packLine(type,units,cases),type};
   renderCarton(cCanvas,cCur);
   const c=sheetCfg();
   cStatus.className='status '+(nu.forced?'warn':'ok');const pr=printCfg(c.cols*c.rows);cStatus.textContent='UPC '+nu.note+'. '+(pr.copies?pr.copies+' label'+(pr.copies===1?'':'s'):'Full sheet ('+(c.cols*c.rows)+' labels)')+(pr.start>1?', starting at label #'+pr.start:'')+'.';
-  cPdf.disabled=cPng.disabled=false;
+  cPdf.disabled=cPng.disabled=cEl('c-preview').disabled=false;
 }
 cName.addEventListener('input',()=>{if(!cPackTouched)applyPack(singleGuess());updateCarton();});
 cCol.addEventListener('input',()=>{if(!cPackTouched)applyPack(singleGuess());updateCarton();});
@@ -628,7 +741,9 @@ cPack.addEventListener('change',()=>{cPackTouched=true;applyPack(cPack.value);up
 cType.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(b.disabled)return;cType.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');updateCarton();}));
 document.querySelectorAll('#carton-shared details input,#carton-shared details select').forEach(el=>['input','change'].forEach(ev=>el.addEventListener(ev,()=>{updateCarton();if(cbRows.length)renderCartonBatch();})));
 cPng.addEventListener('click',async()=>{if(!cCur)return;downloadBlob(await canvasToBlob(cCanvas),labelFile(cCur.type,cCur.name,cCur.sku)+'.png');});
-cPdf.addEventListener('click',()=>{if(!cCur)return;const doc=buildSheetPDF([{data:cCanvas.toDataURL('image/png'),alias:'one'}]);if(doc)doc.save(labelFile(cCur.type,cCur.name,cCur.sku)+'.pdf');});
+function cartonSinglePDF(preview){if(!cCur)return;outPDF(buildSheetPDF([{data:cCanvas.toDataURL('image/png'),alias:'one'}]),labelFile(cCur.type,cCur.name,cCur.sku)+'.pdf',preview);}
+cPdf.addEventListener('click',()=>cartonSinglePDF(false));
+cEl('c-preview').addEventListener('click',()=>cartonSinglePDF(true));
 applyPack(singleGuess());
 
 // batch
@@ -667,7 +782,7 @@ function renderCartonBatch(){
   cbRows.forEach((r,i)=>{if(rowOk(r))renderCarton(cEl('cbc-'+i),rowLabel(r,'carton'));});
   const pages=cbPages();
   cbSummary.textContent=pages+' label'+(pages===1?'':'s')+' ready from '+cbRows.filter(rowOk).length+' of '+cbRows.length+' items.'+conflictNote(cbConf);
-  cbPdf.disabled=pages===0;
+  cbPdf.disabled=pages===0;cEl('cb-preview').disabled=pages===0;
   cbResults.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('change',()=>{
     const r=cbRows[+el.dataset.i],k=el.dataset.k;
     if(k==='pack'){const p=packById(el.value);r.pack=p.id;if(p.id!=='custom'){r.units=p.units;r.cases=p.cases;r.doCase=p.cases>0;}}
@@ -677,22 +792,24 @@ function renderCartonBatch(){
   }));
 }
 function cbPages(){return cbRows.filter(rowOk).reduce((a,r)=>a+(r.doCarton?1:0)+(r.doCase&&+r.cases>0?1:0),0);}
-cbPdf.addEventListener('click',()=>{
+function cartonBatchPDF(preview){
   const cv=document.createElement('canvas'),pages=[];let n=0;
   cbRows.filter(rowOk).forEach(r=>{
     const types=[];if(r.doCarton)types.push('carton');if(r.doCase&&+r.cases>0)types.push('case');
     types.forEach(t=>{renderCarton(cv,rowLabel(r,t));pages.push({data:cv.toDataURL('image/png'),alias:'p'+(n++)});});
   });
   if(!pages.length)return;
-  const doc=buildSheetPDF(pages);if(doc)doc.save('norse_foundry_case_carton_labels.pdf');
-});
+  outPDF(buildSheetPDF(pages),'norse_foundry_case_carton_labels.pdf',preview);
+}
+cbPdf.addEventListener('click',()=>cartonBatchPDF(false));
+cEl('cb-preview').addEventListener('click',()=>cartonBatchPDF(true));
 
 
 
 // sheet layout: reset + fit check
 const SHEET_DEFAULT={'sh-lw':4,'sh-lh':2,'sh-cols':2,'sh-rows':5,'sh-mt':0.5,'sh-ml':0.16,'sh-gx':0.19,'sh-gy':0};
-function checkSheet(){
-  const c=sheetCfg(),st=document.getElementById('sh-status');
+function checkSheet(p='sh'){
+  const c=sheetCfg(p),st=document.getElementById(p+'-status');
   const w=c.ml+c.cols*c.lw+(c.cols-1)*c.gx,h=c.mt+c.rows*c.lh+(c.rows-1)*c.gy;
   if(w>8.5+0.01||h>11+0.01){st.className='status bad';st.textContent='This layout is '+w.toFixed(2)+' x '+h.toFixed(2)+' in, bigger than a Letter page (8.5 x 11 in). Labels past the edge will be cut off. All values are in inches.';return false;}
   st.className='status ok';st.textContent=(c.cols*c.rows)+' labels per page, using '+w.toFixed(2)+' x '+h.toFixed(2)+' in of the 8.5 x 11 in page.';return true;
@@ -701,8 +818,14 @@ document.getElementById('sh-reset').addEventListener('click',()=>{
   Object.entries(SHEET_DEFAULT).forEach(([id,v])=>document.getElementById(id).value=v);
   checkSheet();updateCarton();if(cbRows.length)renderCartonBatch();
 });
-document.querySelectorAll('#carton-shared details input').forEach(el=>el.addEventListener('input',checkSheet));
+document.querySelectorAll('#carton-shared details input').forEach(el=>el.addEventListener('input',()=>checkSheet('sh')));
 checkSheet();
+const PSHEET_DEFAULT={'ps-lw':2.625,'ps-lh':1,'ps-cols':3,'ps-rows':10,'ps-mt':0.5,'ps-ml':0.1875,'ps-gx':0.125,'ps-gy':0};
+document.getElementById('ps-reset').addEventListener('click',()=>{
+  Object.entries(PSHEET_DEFAULT).forEach(([id,v])=>document.getElementById(id).value=v);checkSheet('ps');setTimeout(saveSettings,0);
+});
+document.querySelectorAll('#product-shared details input').forEach(el=>el.addEventListener('input',()=>checkSheet('ps')));
+checkSheet('ps');
 // packaging reference table
 document.querySelector('#pack-ref tbody').innerHTML=PACKS.filter(p=>p.id!=='custom').map(p=>
   '<tr><td>'+p.label+'</td><td>'+(p.cases>0?p.units+' per case':'No case')+'</td><td>'
@@ -727,14 +850,19 @@ vBoxes.forEach(vBox=>vBox.addEventListener('change',()=>{
 
 
 // ---- remember layout settings in this browser ----
-const SAVE_IDS=['sh-lw','sh-lh','sh-cols','sh-rows','sh-mt','sh-ml','sh-gx','sh-gy','sh-company','sh-outline','sh-digits'];
+const SAVE_IDS=['sh-lw','sh-lh','sh-cols','sh-rows','sh-mt','sh-ml','sh-gx','sh-gy','sh-company','sh-outline','sh-digits','ps-lw','ps-lh','ps-cols','ps-rows','ps-mt','ps-ml','ps-gx','ps-gy','ps-outline'];
 const SAVE_KEY='nfb-settings-v1';
 function saveSettings(){try{const o={};SAVE_IDS.forEach(id=>o[id]=document.getElementById(id).value);localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}}
 function loadSettings(){try{const o=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(!o)return;SAVE_IDS.forEach(id=>{if(o[id]!=null)document.getElementById(id).value=o[id];});}catch(e){}}
 loadSettings();
 SAVE_IDS.forEach(id=>['input','change'].forEach(ev=>document.getElementById(id).addEventListener(ev,saveSettings)));
 document.getElementById('sh-reset').addEventListener('click',()=>setTimeout(saveSettings,0));
-checkSheet();
+checkSheet();checkSheet('ps');
+// preview modal controls
+document.getElementById('pdfview-close').addEventListener('click',closePDF);
+document.getElementById('pdfview-dl').addEventListener('click',()=>{if(pdfDoc)pdfDoc.save(pdfName);});
+document.getElementById('pdfview').addEventListener('click',e=>{if(e.target.id==='pdfview')closePDF();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('pdfview').classList.contains('open'))closePDF();});
 // ---- click a batch preview to zoom ----
 const zoomEl=document.getElementById('zoom'),zoomImg=document.getElementById('zoom-img'),zoomCap=document.getElementById('zoom-cap');
 function openZoom(canvas){
@@ -755,9 +883,10 @@ document.fonts.load("bold 46px 'NFSerif'").then(()=>document.fonts.ready).then((
 </script>
 <footer class="foot">
   <div class="wrap foot-in">
-    <span>Version 2026.10.02</span>
+    <span>Version 2026.10.21</span>
     <details><summary>What's new</summary>
       <ul>
+        <li><b>2026.10.21</b> Product label sheets (30 per sheet by default) for single and batch, and Preview sheet on every tab to check a PDF before downloading.</li>
         <li><b>2026.10.02</b> Case &amp; carton labels (single and batch), sheet PDF for 4 x 2 label sheets, packaging reference, partial sheets (copies and start position), saved layout settings, UPC validity check, SKU and UPC conflict warnings, click to zoom batch previews, paste rows straight from the Barcode Masterlist.</li>
         <li><b>Original</b> Product label (single and batch), PNG and ZIP download.</li>
       </ul>
