@@ -291,10 +291,15 @@ Owlbear - Hard Enamel Pin - Blue	NOR 03649	645318793567</textarea>
         <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="ps-reset" type="button">Reset to Avery 5160</button></div>
       </div>
       <div class="row2" style="margin-top:12px">
+        <div><label for="ps-safe">Safe margin inside each label (in)</label><input id="ps-safe" type="number" step="0.01" min="0" value="0.08"></div>
+        <div></div>
+      </div>
+      <div class="row2" style="margin-top:12px">
         <div><label for="pp-copies">Copies of each label</label><input id="pp-copies" type="number" min="1" placeholder="Full sheet"></div>
         <div><label for="pp-start">Start at label #</label><input id="pp-start" type="number" min="1" value="1"></div>
       </div>
       <p class="hint">Labels are numbered left to right, top to bottom. Leave copies blank for a full sheet of each label. With copies set, labels in a batch follow each other on the same sheet.</p>
+      <p class="hint"><b>Printing:</b> print at Actual size (100%) with Fit to page turned off. Scaling shifts every row a little more than the one above it. The safe margin keeps text and digits clear of the label edges if the printer drifts slightly.</p>
       <div class="status" id="ps-status"></div>
     </details>
   </div>
@@ -322,9 +327,14 @@ Owlbear - Hard Enamel Pin - Blue	NOR 03649	645318793567</textarea>
         <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="sh-reset" type="button">Reset to Avery 5163</button></div>
       </div>
       <div class="row2" style="margin-top:12px">
+        <div><label for="sh-safe">Safe margin inside each label (in)</label><input id="sh-safe" type="number" step="0.01" min="0" value="0.06"></div>
+        <div></div>
+      </div>
+      <div class="row2" style="margin-top:12px">
         <div><label for="pr-copies">Copies of each label</label><input id="pr-copies" type="number" min="1" placeholder="Full sheet"></div>
         <div><label for="pr-start">Start at label #</label><input id="pr-start" type="number" min="1" value="1"></div>
       </div>
+      <p class="hint"><b>Printing:</b> print at Actual size (100%) with Fit to page turned off. The safe margin keeps text clear of the label edges if the printer drifts slightly.</p>
       <p class="hint">Use these to finish a half-used sheet. Labels are numbered left to right, top to bottom. Leave copies blank for a full sheet of each label. With copies set, labels in a batch follow each other on the same sheet.</p>
       <div class="status" id="sh-status"></div>
     </details>
@@ -459,7 +469,7 @@ function setProductPdfBtns(off){['s-preview','s-pdf'].forEach(id=>{const b=docum
 function productFile(name,sku){return 'Product sheet - '+sanitize(name)+' - '+sanitize(sku)+'.pdf';}
 function productSinglePDF(preview){
   if(!sCurrent)return;const t=trimCanvas(sCanvas);
-  outPDF(buildSheetPDF([{...t,alias:'prod'}],'ps',0.04),productFile(sCurrent.name,sCurrent.sku),preview);
+  outPDF(buildSheetPDF([{...t,alias:'prod'}],'ps'),productFile(sCurrent.name,sCurrent.sku),preview);
 }
 document.getElementById('s-pdf').addEventListener('click',()=>productSinglePDF(false));
 document.getElementById('s-preview').addEventListener('click',()=>productSinglePDF(true));
@@ -528,7 +538,7 @@ function renderBatch(){
 function productBatchPDF(preview){
   const valid=bRows.filter(r=>r.valid);if(!valid.length)return;
   const cv=document.createElement('canvas'),pages=valid.map((r,i)=>{renderLabel(cv,r.sku||' ',r.code,r.name||' ');return {...trimCanvas(cv),alias:'pb'+i};});
-  outPDF(buildSheetPDF(pages,'ps',0.04),'norse_foundry_product_labels.pdf',preview);
+  outPDF(buildSheetPDF(pages,'ps'),'norse_foundry_product_labels.pdf',preview);
 }
 document.getElementById('b-pdf').addEventListener('click',()=>productBatchPDF(false));
 document.getElementById('b-preview').addEventListener('click',()=>productBatchPDF(true));
@@ -638,8 +648,9 @@ function printCfg(per,p='sh'){
 }
 // pages: [{data, alias, w, h}] where w/h are the image's pixel size (defaults to the carton canvas)
 // one placement list drives both the PDF and the on-screen preview
-function layoutSheet(pages,p='sh',pad=0){
-  const c=sheetCfg(p),per=c.cols*c.rows,pr=printCfg(per,p),out=[[]];
+function safeMargin(p){const v=parseFloat(document.getElementById(p+'-safe').value);return v>=0?Math.min(v,0.4):0;}
+function layoutSheet(pages,p='sh'){
+  const pad=safeMargin(p),c=sheetCfg(p),per=c.cols*c.rows,pr=printCfg(per,p),out=[[]];
   let slot=pr.start-1;
   pages.forEach((pg,pi)=>{
     if(!pr.copies&&pi){out.push([]);slot=0;}
@@ -655,10 +666,10 @@ function layoutSheet(pages,p='sh',pad=0){
   });
   return {cfg:c,sheets:out};
 }
-function buildSheetPDF(pages,p='sh',pad=0){
+function buildSheetPDF(pages,p='sh'){
   if(!window.jspdf){alert('PDF library did not load (offline?). Use the PNG download instead.');return null;}
   if(!checkSheet(p)&&!confirm('Sheet layout does not fit a Letter page. Continue anyway?'))return null;
-  const L=layoutSheet(pages,p,pad),doc=new window.jspdf.jsPDF({unit:'in',format:'letter'});
+  const L=layoutSheet(pages,p),doc=new window.jspdf.jsPDF({unit:'in',format:'letter'});
   L.sheets.forEach((items,si)=>{
     if(si)doc.addPage();
     items.forEach(it=>{
@@ -687,7 +698,7 @@ async function showPDF(doc,name){
   if(!doc)return;pdfDoc=doc;pdfName=name;
   const L=doc._nfLayout,box=document.getElementById('pdfview-pages'),DPI=150;
   const n=L.sheets.length,cells=L.sheets.reduce((a,x)=>a+x.length,0);
-  document.getElementById('pdfview-name').innerHTML=escapeHtml(name)+'<small>'+n+' page'+(n===1?'':'s')+', '+cells+' label'+(cells===1?'':'s')+'. Exact layout of the PDF on a Letter page. Dashed lines show label edges and are not printed.</small>';
+  document.getElementById('pdfview-name').innerHTML=escapeHtml(name)+'<small>'+n+' page'+(n===1?'':'s')+', '+cells+' label'+(cells===1?'':'s')+'. Exact layout of the PDF on a Letter page. Dashed lines show label edges and are not printed. Print at Actual size (100%).</small>';
   box.innerHTML='';document.getElementById('pdfview').classList.add('open');
   const cache={};
   for(let si=0;si<n;si++){
@@ -807,7 +818,7 @@ cEl('cb-preview').addEventListener('click',()=>cartonBatchPDF(true));
 
 
 // sheet layout: reset + fit check
-const SHEET_DEFAULT={'sh-lw':4,'sh-lh':2,'sh-cols':2,'sh-rows':5,'sh-mt':0.5,'sh-ml':0.16,'sh-gx':0.19,'sh-gy':0};
+const SHEET_DEFAULT={'sh-lw':4,'sh-lh':2,'sh-cols':2,'sh-rows':5,'sh-mt':0.5,'sh-ml':0.16,'sh-gx':0.19,'sh-gy':0,'sh-safe':0.06};
 function checkSheet(p='sh'){
   const c=sheetCfg(p),st=document.getElementById(p+'-status');
   const w=c.ml+c.cols*c.lw+(c.cols-1)*c.gx,h=c.mt+c.rows*c.lh+(c.rows-1)*c.gy;
@@ -820,7 +831,7 @@ document.getElementById('sh-reset').addEventListener('click',()=>{
 });
 document.querySelectorAll('#carton-shared details input').forEach(el=>el.addEventListener('input',()=>checkSheet('sh')));
 checkSheet();
-const PSHEET_DEFAULT={'ps-lw':2.625,'ps-lh':1,'ps-cols':3,'ps-rows':10,'ps-mt':0.5,'ps-ml':0.1875,'ps-gx':0.125,'ps-gy':0};
+const PSHEET_DEFAULT={'ps-lw':2.625,'ps-lh':1,'ps-cols':3,'ps-rows':10,'ps-mt':0.5,'ps-ml':0.1875,'ps-gx':0.125,'ps-gy':0,'ps-safe':0.08};
 document.getElementById('ps-reset').addEventListener('click',()=>{
   Object.entries(PSHEET_DEFAULT).forEach(([id,v])=>document.getElementById(id).value=v);checkSheet('ps');setTimeout(saveSettings,0);
 });
@@ -850,7 +861,7 @@ vBoxes.forEach(vBox=>vBox.addEventListener('change',()=>{
 
 
 // ---- remember layout settings in this browser ----
-const SAVE_IDS=['sh-lw','sh-lh','sh-cols','sh-rows','sh-mt','sh-ml','sh-gx','sh-gy','sh-company','sh-outline','sh-digits','ps-lw','ps-lh','ps-cols','ps-rows','ps-mt','ps-ml','ps-gx','ps-gy','ps-outline'];
+const SAVE_IDS=['sh-lw','sh-lh','sh-cols','sh-rows','sh-mt','sh-ml','sh-gx','sh-gy','sh-company','sh-outline','sh-digits','ps-lw','ps-lh','ps-cols','ps-rows','ps-mt','ps-ml','ps-gx','ps-gy','ps-outline','sh-safe','ps-safe'];
 const SAVE_KEY='nfb-settings-v1';
 function saveSettings(){try{const o={};SAVE_IDS.forEach(id=>o[id]=document.getElementById(id).value);localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}}
 function loadSettings(){try{const o=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(!o)return;SAVE_IDS.forEach(id=>{if(o[id]!=null)document.getElementById(id).value=o[id];});}catch(e){}}
@@ -883,9 +894,10 @@ document.fonts.load("bold 46px 'NFSerif'").then(()=>document.fonts.ready).then((
 </script>
 <footer class="foot">
   <div class="wrap foot-in">
-    <span>Version 2026.10.21</span>
+    <span>Version 2026.10.23</span>
     <details><summary>What's new</summary>
       <ul>
+        <li><b>2026.10.23</b> Safe margin inside each label so printer drift does not clip text or digits, and printing guidance (Actual size, 100%).</li>
         <li><b>2026.10.21</b> Product label sheets (30 per sheet by default) for single and batch, and Preview sheet on every tab to check a PDF before downloading.</li>
         <li><b>2026.10.02</b> Case &amp; carton labels (single and batch), sheet PDF for 4 x 2 label sheets, packaging reference, partial sheets (copies and start position), saved layout settings, UPC validity check, SKU and UPC conflict warnings, click to zoom batch previews, paste rows straight from the Barcode Masterlist.</li>
         <li><b>Original</b> Product label (single and batch), PNG and ZIP download.</li>
